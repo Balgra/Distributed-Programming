@@ -81,6 +81,7 @@ void recv_msg_handler() {
 }
 
 int main(){
+    // use 20.52.157.199 to connect to the azure VM
     char *ip = "127.0.0.1";
     int port = PORT;
 
