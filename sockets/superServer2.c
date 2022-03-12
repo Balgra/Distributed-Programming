@@ -231,6 +231,7 @@ void *handle_client(void *arg){
 }
 
 int main(int argc, char **argv){
+	// on the server the ip 0.0.0.0 was used to allow connections to the server from any ip
 	char *ip = "127.0.0.1";
 	int port = PORT;
 
