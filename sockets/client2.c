@@ -9,13 +9,19 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define LENGTH 2048
+#define SEND_LENGTH 100
+#define RCV_LENGTH 150
 #define PORT 8888
 
 // Global variables
 volatile sig_atomic_t flag = 0;
 int sockfd = 0;
 char name[32];
+
+void fakeflush_stdin(){
+    char c;
+    while((c = getchar()) != '\n' && c != EOF);
+}
 
 void str_overwrite_stdout() {
   printf("%s", "> ");
@@ -24,7 +30,7 @@ void str_overwrite_stdout() {
 
 void str_trim_lf (char* arr, int length) {
   int i;
-  for (i = 0; i < length; i++) { // trim \n
+  for (i = 0; i < length; i++) {
     if (arr[i] == '\n') {
       arr[i] = '\0';
       break;
@@ -37,38 +43,44 @@ void catch_ctrl_c_and_exit(int sig) {
 }
 
 void send_msg_handler() {
-  char message[LENGTH] = {};
-	char buffer[LENGTH + 32] = {};
+  char message[SEND_LENGTH] = {};
+  char buffer[SEND_LENGTH + 32] = {};
 
   for(;;){
   	str_overwrite_stdout();
-    fgets(message, LENGTH, stdin);
-    str_trim_lf(message, LENGTH);
+    fgets(message, SEND_LENGTH + 5, stdin);
 
-    if (strcmp(message, "exit") == 0) {
-			break;
-    } else {
-      sprintf(buffer, "%s: %s\n", name, message);
-      send(sockfd, buffer, strlen(buffer), 0);
+    if(strlen(message) > SEND_LENGTH){
+        printf("Please keep the messages under %d characters!\n", SEND_LENGTH);
+        fakeflush_stdin();
+    }
+    else{
+        str_trim_lf(message, SEND_LENGTH);
+
+        if (strcmp(message, "exit") == 0)
+            break;
+        else
+          send(sockfd, message, strlen(message), 0);
     }
 
-		bzero(message, LENGTH);
-    bzero(buffer, LENGTH + 32);
+    bzero(message, SEND_LENGTH);
+    bzero(buffer, SEND_LENGTH + 32);
   }
-  catch_ctrl_c_and_exit(2);
+
+  catch_ctrl_c_and_exit(SIGINT);
 }
 
 void recv_msg_handler() {
-	char message[LENGTH] = {};
+	char message[RCV_LENGTH] = {};
+
     for(;;){
-        int receive = recv(sockfd, message, LENGTH, 0);
+        int receive = recv(sockfd, message, RCV_LENGTH, 0);
 
         if(strcmp(message, "Username is already taken.\n") == 0){
-            flag = 1;
             printf("%s", message);
+            flag = 2;
             break;
         }
-
 
         if (receive > 0) {
           printf("%s", message);
@@ -76,12 +88,12 @@ void recv_msg_handler() {
         } else if (receive == 0) {
             break;
         }
+
 		memset(message, 0, sizeof(message));
   }
 }
 
 int main(){
-    // use 20.52.157.199 to connect to the azure VM
     char *ip = "127.0.0.1";
     int port = PORT;
 
@@ -90,7 +102,6 @@ int main(){
     printf("Please enter your name: ");
     fgets(name, 32, stdin);
     str_trim_lf(name, strlen(name));
-
 
     if (strlen(name) > 32 || strlen(name) < 2){
         printf("Name must be less than 30 and more than 2 characters.\n");
@@ -116,17 +127,11 @@ int main(){
 	// Send name
 	send(sockfd, name, 32, 0);
 
-
-
     pthread_t recv_msg_thread;
     if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
         printf("ERROR: pthread\n");
         return EXIT_FAILURE;
     }
-
-    printf("%d\n", flag);
-
-	printf("=== WELCOME TO THE CHATROOM ===\n");
 
     pthread_t send_msg_thread;
     if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
@@ -134,12 +139,10 @@ int main(){
         return EXIT_FAILURE;
     }
 
-
-
-
-
 	for(;;){
 		if(flag){
+            if(flag == 1)
+                printf("\nGoodbye! :D\n");
 			break;
         }
 	}

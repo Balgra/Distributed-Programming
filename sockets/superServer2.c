@@ -11,13 +11,12 @@
 #include <signal.h>
 
 #define MAX_CLIENTS 10
-#define BUFFER_SZ 2048
+#define MAX_MSG_LENGTH 100
+#define BUFFER_SZ 150
 #define PORT 8888
 
 unsigned int cli_count = 0;
 static int uid = 10;
-
-
 
 /* Client structure */
 typedef struct{
@@ -66,8 +65,6 @@ void removeName(char name[]){
         }
     }
 }
-
-
 
 
 void str_overwrite_stdout() {
@@ -120,9 +117,19 @@ void queue_remove(int uid){
 void send_message(char *s, int uid){
 	pthread_mutex_lock(&clients_mutex);
 
+    char buffer[BUFFER_SZ] = {};
+    for(int i=0; i<MAX_CLIENTS; ++i){
+        if(clients[i]){
+            if(clients[i]->uid == uid){
+                sprintf(buffer, "%s: %s\n", clients[i]->name, s);
+                break;
+            }
+        }
+    }
+
 	for(int i=0; i<MAX_CLIENTS; ++i){
 		if(clients[i]){
-            if(write(clients[i]->sockfd, s, strlen(s)) < 0){
+            if(write(clients[i]->sockfd, buffer, strlen(buffer)) < 0){
                 perror("ERROR: write to descriptor failed");
                 break;
             }
@@ -171,6 +178,7 @@ void *handle_client(void *arg){
                 strcpy(cli->name, name);
                 sprintf(buff_out, "%s has joined\n", cli->name);
                 printf("%s", buff_out);
+                send_message_to_uid("=== WELCOME TO THE CHATROOM ===\n", cli->uid);
                 send_message(buff_out, cli->uid);
             }
 	}
@@ -181,7 +189,6 @@ void *handle_client(void *arg){
         queue_remove(cli->uid);
         free(cli);
         cli_count--;
-        printf("BBBBBBBBBBB\n");
         pthread_detach(pthread_self());
 
         return NULL;
@@ -191,39 +198,46 @@ void *handle_client(void *arg){
 
 	for(;;){
 		if (leave_flag) {
-
 			break;
 		}
 
 		int receive = recv(cli->sockfd, buff_out, BUFFER_SZ, 0);
-		if (receive > 0){
-			if(strlen(buff_out) > 0){
-				send_message(buff_out, cli->uid);
 
-				str_trim_lf(buff_out, strlen(buff_out));
-				printf("%s\n", buff_out);
-			}
-		} else if (receive == 0 || strcmp(buff_out, "exit") == 0){
-			sprintf(buff_out, "%s has left\n", cli->name);
-			printf("%s", buff_out);
-			send_message(buff_out, cli->uid);
-			leave_flag = 1;
-		} else {
-			printf("ERROR: -1\n");
-			leave_flag = 1;
+		if(strlen(buff_out) > MAX_MSG_LENGTH){
+            char buff[BUFFER_SZ] = {};
+            sprintf(buff, "Please keep the messages under %d characters!\n", MAX_MSG_LENGTH);
+            send_message_to_uid(buff, cli->uid);
 		}
+        else{
+            if (receive > 0){
+                if(strlen(buff_out) > 0){
+                    send_message(buff_out, cli->uid);
+
+                    str_trim_lf(buff_out, strlen(buff_out));
+                    printf("%s: %s\n", cli->name, buff_out);
+                }
+            } else if (receive == 0 || strcmp(buff_out, "exit") == 0){
+                sprintf(buff_out, "%s has left\n", cli->name);
+                printf("%s", buff_out);
+                send_message(buff_out, cli->uid);
+                leave_flag = 1;
+            } else {
+                printf("ERROR: -1\n");
+                leave_flag = 1;
+            }
+        }
+
 
 		bzero(buff_out, BUFFER_SZ);
 	}
 
   /* Delete client from queue and yield thread */
-
+    /// When client disconnects
     removeName(cli->name);
     close(cli->sockfd);
     queue_remove(cli->uid);
     free(cli);
     cli_count--;
-    printf("AAAAAAAAAAAAAA\n");
     pthread_detach(pthread_self());
 
 
@@ -231,7 +245,6 @@ void *handle_client(void *arg){
 }
 
 int main(int argc, char **argv){
-	// on the server the ip 0.0.0.0 was used to allow connections to the server from any ip
 	char *ip = "127.0.0.1";
 	int port = PORT;
 
@@ -267,7 +280,7 @@ int main(int argc, char **argv){
     return EXIT_FAILURE;
     }
 
-    printf("=== WELCOME TO THE CHATROOM ===\n");
+    printf("Chatroom server started\n");
 
     initNames();
 
