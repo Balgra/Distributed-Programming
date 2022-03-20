@@ -24,18 +24,17 @@ void fakeflush_stdin(){
 }
 
 void str_overwrite_stdout() {
-  printf("%s", "> ");
-  fflush(stdout);
+    printf("%s", "> ");
+    fflush(stdout);
 }
 
 void str_trim_lf (char* arr, int length) {
-  int i;
-  for (i = 0; i < length; i++) {
-    if (arr[i] == '\n') {
-      arr[i] = '\0';
-      break;
+    for(int i = 0; i < length; i++) {
+        if (arr[i] == '\n') {
+            arr[i] = '\0';
+            break;
+        }
     }
-  }
 }
 
 void catch_ctrl_c_and_exit(int sig) {
@@ -43,11 +42,11 @@ void catch_ctrl_c_and_exit(int sig) {
 }
 
 void send_msg_handler() {
-  char message[SEND_LENGTH] = {};
-  char buffer[SEND_LENGTH + 32] = {};
+    char message[SEND_LENGTH] = {};
+    char buffer[SEND_LENGTH + 32] = {};
 
-  for(;;){
-  	str_overwrite_stdout();
+    for(;;){
+    str_overwrite_stdout();
     fgets(message, SEND_LENGTH + 5, stdin);
 
     if(strlen(message) > SEND_LENGTH){
@@ -57,7 +56,7 @@ void send_msg_handler() {
     else{
         str_trim_lf(message, SEND_LENGTH);
 
-        if (strcmp(message, "exit") == 0)
+        if (strcmp(message, "!exit") == 0)
             break;
         else
           send(sockfd, message, strlen(message), 0);
@@ -65,9 +64,9 @@ void send_msg_handler() {
 
     bzero(message, SEND_LENGTH);
     bzero(buffer, SEND_LENGTH + 32);
-  }
+    }
 
-  catch_ctrl_c_and_exit(SIGINT);
+    catch_ctrl_c_and_exit(SIGINT);
 }
 
 void recv_msg_handler() {
@@ -149,5 +148,5 @@ int main(){
 
 	close(sockfd);
 
-	return EXIT_SUCCESS;
+	return 0;
 }
