@@ -74,8 +74,7 @@ void str_overwrite_stdout() {
 
 
 void str_trim_lf (char* arr, int length) {
-  int i;
-  for (i = 0; i < length; i++) { // trim \n
+  for (int i = 0; i < length; i++) {
     if (arr[i] == '\n') {
       arr[i] = '\0';
       break;
@@ -83,7 +82,7 @@ void str_trim_lf (char* arr, int length) {
   }
 }
 
-/* Add clients to queue */
+/* Add client */
 void queue_add(client_t *cl){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -97,7 +96,7 @@ void queue_add(client_t *cl){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Remove clients to queue */
+/* Remove client */
 void queue_remove(int uid){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -129,9 +128,11 @@ void send_message(char *s, int uid){
 
 	for(int i=0; i<MAX_CLIENTS; ++i){
 		if(clients[i]){
-            if(write(clients[i]->sockfd, buffer, strlen(buffer)) < 0){
-                perror("ERROR: write to descriptor failed");
-                break;
+            if(clients[i]->uid != uid){
+                if(write(clients[i]->sockfd, buffer, strlen(buffer)) < 0){
+                    perror("ERROR: write to descriptor failed");
+                    break;
+                }
             }
 		}
 	}
@@ -139,18 +140,14 @@ void send_message(char *s, int uid){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-void send_message_to_uid(char s[], int uid){
-    for(int i=0; i<MAX_CLIENTS; ++i){
-		if(clients[i]){
-            if(clients[i]->uid == uid){
-                if(write(clients[i]->sockfd, s, strlen(s)) < 0){
-                    perror("ERROR: write to descriptor failed");
-                    break;
-                }
-                return;
-            }
-		}
-	}
+void send_message_to_uid(char s[], int sockfd){
+    pthread_mutex_lock(&clients_mutex);
+
+    if(write(sockfd, s, strlen(s)) < 0){
+        perror("ERROR: write to descriptor failed");
+    }
+
+	pthread_mutex_unlock(&clients_mutex);
 }
 
 /* Handle all communication with the client */
@@ -170,7 +167,7 @@ void *handle_client(void *arg){
 	else{
             if(!checkUniqueName(name)){
                 printf("Name is taken.\n"); // REMOVE IN THE END!!!
-                send_message_to_uid("Username is already taken.\n", cli->uid);
+                send_message_to_uid("Username is already taken.\n", cli->sockfd);
                 leave_flag = 1;
             }
             else{
@@ -178,7 +175,7 @@ void *handle_client(void *arg){
                 strcpy(cli->name, name);
                 sprintf(buff_out, "%s has joined\n", cli->name);
                 printf("%s", buff_out);
-                send_message_to_uid("=== WELCOME TO THE CHATROOM ===\n", cli->uid);
+                send_message_to_uid("=== WELCOME TO THE CHATROOM ===\n", cli->sockfd);
                 send_message(buff_out, cli->uid);
             }
 	}
@@ -206,7 +203,7 @@ void *handle_client(void *arg){
 		if(strlen(buff_out) > MAX_MSG_LENGTH){
             char buff[BUFFER_SZ] = {};
             sprintf(buff, "Please keep the messages under %d characters!\n", MAX_MSG_LENGTH);
-            send_message_to_uid(buff, cli->uid);
+            send_message_to_uid(buff, cli->sockfd);
 		}
         else{
             if (receive > 0){
@@ -245,7 +242,7 @@ void *handle_client(void *arg){
 }
 
 int main(int argc, char **argv){
-	char *ip = "127.0.0.1";
+	char *ip = "127.0.0.1"; ///0.0.0.0
 	int port = PORT;
 
 	int option = 1;
@@ -260,8 +257,8 @@ int main(int argc, char **argv){
     serv_addr.sin_addr.s_addr = inet_addr(ip);
     serv_addr.sin_port = htons(port);
 
-  /* Ignore pipe signals */
-	signal(SIGPIPE, SIG_IGN);
+    /* Ignore pipe signals */
+	signal(SIGPIPE, SIG_IGN); ///////////////////
 
 	if(setsockopt(listenfd, SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&option,sizeof(option)) < 0){
 		perror("ERROR: setsockopt failed");
@@ -289,7 +286,6 @@ int main(int argc, char **argv){
         connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
 
         /* Check if max clients is reached */
-        printf("%d\n", cli_count);
         if(cli_count+1 == MAX_CLIENTS){
             printf("Max clients reached. Rejected connection.\n");
             close(connfd);
@@ -310,5 +306,5 @@ int main(int argc, char **argv){
         sleep(1);
     }
 
-	return EXIT_SUCCESS;
+	return 0;
 }
