@@ -32,40 +32,21 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 /// Functions and variables for username operations
-char allNames[MAX_CLIENTS][32];
 
-void initNames(){
+int checkUniqueName(char name[], int uid){
     for(int i = 0; i < MAX_CLIENTS; ++i){
-        strcpy(allNames[i], "");
-    }
-}
-
-int checkUniqueName(char name[]){
-    for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(strcmp(allNames[i], name) == 0)
-            return 0;
+        if(clients[i]){
+            if(uid != clients[i]->uid){
+                if(strcmp(name, clients[i]->name) == 0)
+                    return 0;
+            }
+        }
     }
     return 1;
 }
 
-void addName(char name[]){
-    for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(strcmp(allNames[i], "") == 0){
-            strcpy(allNames[i], name);
-            return;
-        }
-    }
-}
 
-void removeName(char name[]){
-    for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(strcmp(allNames[i], name) == 0){
-            strcpy(allNames[i], "");
-            return;
-        }
-    }
-}
-
+/// Functions for terminal clear
 
 void str_overwrite_stdout() {
     printf("\r%s", "> ");
@@ -82,7 +63,7 @@ void str_trim_lf (char* arr, int length) {
   }
 }
 
-/* Add client */
+/// Client functions
 void queue_add(client_t *cl){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -96,7 +77,7 @@ void queue_add(client_t *cl){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Remove client */
+
 void queue_remove(int uid){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -112,19 +93,50 @@ void queue_remove(int uid){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Send message to all clients except sender */
+
+/// Message functions
 void send_message(char *s, int uid){
 	pthread_mutex_lock(&clients_mutex);
+
+    time_t rawtime;
+    struct tm * timeinfo;
+
+    time ( &rawtime );
+    timeinfo = localtime ( &rawtime );
 
     char buffer[BUFFER_SZ] = {};
     for(int i=0; i<MAX_CLIENTS; ++i){
         if(clients[i]){
             if(clients[i]->uid == uid){
-                sprintf(buffer, "%s: %s\n", clients[i]->name, s);
+                sprintf(buffer, "[%d:%d] %s: %s\n", timeinfo->tm_hour, timeinfo->tm_min, clients[i]->name, s);
                 break;
             }
         }
     }
+
+	for(int i=0; i<MAX_CLIENTS; ++i){
+		if(clients[i]){
+            if(write(clients[i]->sockfd, buffer, strlen(buffer)) < 0){
+                perror("ERROR: write to descriptor failed");
+                break;
+            }
+		}
+	}
+
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+void send_message_from_server(char *s){
+	pthread_mutex_lock(&clients_mutex);
+
+    time_t rawtime;
+    struct tm * timeinfo;
+
+    time ( &rawtime );
+    timeinfo = localtime ( &rawtime );
+
+    char buffer[BUFFER_SZ] = {};
+    sprintf(buffer, "[%d:%d] %s\n", timeinfo->tm_hour, timeinfo->tm_min, s);
 
 	for(int i=0; i<MAX_CLIENTS; ++i){
 		if(clients[i]){
@@ -150,7 +162,7 @@ void send_message_to_uid(char s[], int sockfd){
 	pthread_mutex_unlock(&clients_mutex);
 }
 
-/* Handle all communication with the client */
+/// Handle all communication with the client
 void *handle_client(void *arg){
 	char buff_out[BUFFER_SZ];
 	char name[32];
@@ -159,37 +171,24 @@ void *handle_client(void *arg){
 	cli_count++;
 	client_t *cli = (client_t *)arg;
 
-	// Name
 	if(recv(cli->sockfd, name, 32, 0) <= 0 || strlen(name) <  2 || strlen(name) >= 32-1){
 		printf("Didn't enter the name.\n");
 		leave_flag = 1;
 	}
 	else{
-            if(!checkUniqueName(name)){
-                printf("Name is taken.\n"); // REMOVE IN THE END!!!
-                send_message_to_uid("Username is already taken.\n", cli->sockfd);
-                leave_flag = 1;
-            }
-            else{
-                addName(name);
-                strcpy(cli->name, name);
-                sprintf(buff_out, "%s has joined\n", cli->name);
-                printf("%s", buff_out);
-                send_message_to_uid("=== WELCOME TO THE CHATROOM ===\n", cli->sockfd);
-                send_message(buff_out, cli->uid);
-            }
+        if(!checkUniqueName(name, cli->uid)){
+            printf("CLIENT ERROR: Username is taken.\n");
+            send_message_to_uid("Username is already taken.\n", cli->sockfd);
+            leave_flag = 1;
+        }
+        else{
+            strcpy(cli->name, name);
+            sprintf(buff_out, "%s has joined", cli->name);
+            printf("%s\n", buff_out);
+            send_message_to_uid("=== WELCOME TO THE CHATROOM ===\n", cli->sockfd);
+            send_message_from_server(buff_out);
+        }
 	}
-
-
-    if(leave_flag == 1){
-        close(cli->sockfd);
-        queue_remove(cli->uid);
-        free(cli);
-        cli_count--;
-        pthread_detach(pthread_self());
-
-        return NULL;
-    }
 
 	bzero(buff_out, BUFFER_SZ);
 
@@ -213,10 +212,10 @@ void *handle_client(void *arg){
                     str_trim_lf(buff_out, strlen(buff_out));
                     printf("%s: %s\n", cli->name, buff_out);
                 }
-            } else if (receive == 0 || strcmp(buff_out, "exit") == 0){
-                sprintf(buff_out, "%s has left\n", cli->name);
-                printf("%s", buff_out);
-                send_message(buff_out, cli->uid);
+            } else if (receive == 0 || strcmp(buff_out, "!exit") == 0){
+                sprintf(buff_out, "%s has left", cli->name);
+                printf("%s\n", buff_out);
+                send_message_from_server(buff_out);
                 leave_flag = 1;
             } else {
                 printf("ERROR: -1\n");
@@ -224,19 +223,15 @@ void *handle_client(void *arg){
             }
         }
 
-
 		bzero(buff_out, BUFFER_SZ);
 	}
 
-  /* Delete client from queue and yield thread */
     /// When client disconnects
-    removeName(cli->name);
     close(cli->sockfd);
     queue_remove(cli->uid);
     free(cli);
     cli_count--;
     pthread_detach(pthread_self());
-
 
 	return NULL;
 }
@@ -258,7 +253,7 @@ int main(int argc, char **argv){
     serv_addr.sin_port = htons(port);
 
     /* Ignore pipe signals */
-	signal(SIGPIPE, SIG_IGN); ///////////////////
+	signal(SIGPIPE, SIG_IGN);
 
 	if(setsockopt(listenfd, SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&option,sizeof(option)) < 0){
 		perror("ERROR: setsockopt failed");
@@ -272,14 +267,12 @@ int main(int argc, char **argv){
     }
 
     /* Listen */
-    if (listen(listenfd, 10) < 0) {
-    perror("ERROR: Socket listening failed");
-    return EXIT_FAILURE;
+    if (listen(listenfd, MAX_CLIENTS) < 0) {
+        perror("ERROR: Socket listening failed");
+        return EXIT_FAILURE;
     }
 
     printf("Chatroom server started\n");
-
-    initNames();
 
     for(;;){
         socklen_t clilen = sizeof(cli_addr);
@@ -298,12 +291,9 @@ int main(int argc, char **argv){
         cli->sockfd = connfd;
         cli->uid = uid++;
 
-        /* Add client to the queue and fork thread */
+        /* Add client and fork thread */
         queue_add(cli);
         pthread_create(&tid, NULL, &handle_client, (void*)cli);
-
-        /* Reduce CPU usage */
-        sleep(1);
     }
 
 	return 0;
