@@ -13,7 +13,6 @@
 #define RCV_LENGTH 150
 #define PORT 8888
 
-// Global variables
 volatile sig_atomic_t flag = 0;
 int sockfd = 0;
 char name[32];
