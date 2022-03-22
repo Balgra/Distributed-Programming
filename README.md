@@ -22,7 +22,7 @@ The server has 3 types of messaging functions:
  The client connects to the server and after entering his name he will have a text interface which he will use to send a message.
 The message sent by a client will be sent simultaneously to the other clients logged.
 
-In this project we have use C programming language.
+In this project we have used C programming language.
  We have used threads, signals, memory manipulation functions, mutexes.
 
 The code is implemented in such way that we check for overflows and other errors on both client and server side.
