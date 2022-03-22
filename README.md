@@ -19,7 +19,7 @@ The server has 3 types of messaging functions:
 
 # Client:
 
- The cliens connects to the server and after entering his name he will have a text interface which will be used to sent the message he types.
+ The client connects to the server and after entering his name he will have a text interface which he will use to send a message.
 The message sent by a client will be sent simultaneously to the other clients logged.
 
 In this project we have use C programming language.
