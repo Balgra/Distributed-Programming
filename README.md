@@ -9,7 +9,7 @@ For this project we have two components:
 
 # Server:
 
- The server manages the conexions and will manage the communication among the clients connected.
+ The server manages the connection and will manage the communication among the clients connected.
 The clients connect on the server each having an user id, given by the server and a unique name, which they choose when connecting to the server.
 The server receives the messages from the clients and immediatly sends them back to the others clients in the chat room.
 The server has 3 types of messaging functions:
