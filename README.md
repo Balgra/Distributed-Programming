@@ -1,6 +1,6 @@
 # Chat Room System.
 
-The project manages o chat room for discussion for many users simultaneously.
+The project manages a chat room for discussion for many users simultaneously.
 
 
 For this project we have two components:
@@ -10,19 +10,19 @@ For this project we have two components:
 # Server:
 
  The server manages the conexions and will manage the communication among the clients connected.
-The clients connect on the server each having an user id, given by the server and an unique name, which they choose when connecting to the server.
+The clients connect on the server each having an user id, given by the server and a unique name, which they choose when connecting to the server.
 The server receives the messages from the clients and immediatly sends them back to the others clients in the chat room.
 The server has 3 types of messaging functions:
  - From client to all clients: used when somebody sends a message 
  - From server to all clients: used when somebody joins/ leaves the room 
- - From server to a client: used when an error is met eg: "username is already taken"
+ - From server to a client: used when an error is met (e.g. "username is already taken")
 
 # Client:
 
- The clients connects to the server and after entering its name he will be having a text interface which will be used to sent the message he types.
+ The cliens connects to the server and after entering his name he will have a text interface which will be used to sent the message he types.
 The message sent by a client will be sent simultaneously to the other clients logged.
 
-In this project we coded in the C programming language.
+In this project we have use C programming language.
  We have used threads, signals, memory manipulation functions, mutexes.
 
 The code is implemented in such way that we check for overflows and other errors on both client and server side.
