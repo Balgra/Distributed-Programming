@@ -44,6 +44,6 @@ the server side in case someone modifies the client code.
 
 > gcc -pthread -o client.o client.c && ./client.o -> to run the client code
 
-> gcc -pthread -o superServer.o superServer.c && ./superServer.o -> to run the server code.
+> gcc -pthread -o server.o server.c && ./server.o -> to run the server code.
 
 The server needs to be started first, otherwise when a client connents an error message will be sent.
